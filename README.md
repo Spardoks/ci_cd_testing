@@ -1,161 +1,186 @@
-# Домашнее задание к занятию "`Что такое DevOps. СI/СD`" - `Виталий Коряко`
+# Домашнее задание к занятию "`GitLab`" - `Виталий Коряко`
 
-https://github.com/netology-code/sdvps-homeworks/blob/main/8-02.md 
+https://github.com/netology-code/sdvps-homeworks/blob/main/8-03.md 
 
 ## Задание 1
 
 **Что нужно сделать:**
 
-1. Установите себе jenkins по инструкции из лекции или любым другим способом из официальной документации. Использовать Docker в этом задании нежелательно.
-2. Установите на машину с jenkins [golang](https://golang.org/doc/install).
-3. Используя свой аккаунт на GitHub, сделайте себе форк [репозитория](https://github.com/netology-code/sdvps-materials.git). В этом же репозитории находится [дополнительный материал для выполнения ДЗ](https://github.com/netology-code/sdvps-materials/blob/main/CICD/8.2-hw.md).
-3. Создайте в jenkins Freestyle Project, подключите получившийся репозиторий к нему и произведите запуск тестов и сборку проекта ```go test .``` и  ```docker build .```.
+1. Разверните GitLab локально, используя Vagrantfile и инструкцию, описанные в [этом репозитории](https://github.com/netology-code/sdvps-materials/tree/main/gitlab).   
+2. Создайте новый проект и пустой репозиторий в нём.
+3. Зарегистрируйте gitlab-runner для этого проекта и запустите его в режиме Docker. Раннер можно регистрировать и запускать на той же виртуальной машине, на которой запущен GitLab.
 
-В качестве ответа пришлите скриншоты с настройками проекта и результатами выполнения сборки.
+В качестве ответа в репозиторий шаблона с решением добавьте скриншоты с настройками раннера в проекте.
 
 ## Решение 1
 
 ```
+# install gitlab
+download deb from https://packages.gitlab.com/gitlab/gitlab-ee then install
+nano /etc/gitlab/gitlab.rb and change external_url to 172.17.0.1 # ip from docker subnet for using local and in docker
+sudo gitlab-ctl reconfigure
+cd /etc/gitlab
+cat root_initial_password
+root
+zdb+vs2lED+8Momwrj/ZfFn8H3Ope5QPEf53pGn8Rh8=
+
+
 # install docker
-https://docs.google.com/document/d/1xaONQrqilPapDeNjztUmJg9tu900ykL_a-zDOGs55qg/edit?usp=sharing 
+https://docs.google.com/document/d/1xaONQrqilPapDeNjztUmJg9tu900ykL_a-zDOGs55qg/edit?usp=sharing
 
-# install Jenkins
-sudo apt-get install default-jre
-curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
-echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/ | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
-sudo apt-get update
-sudo apt-get install jenkins
-sudo cat /var/lib/jenkins/secrets/initialAdminPassword
-sudo usermod -a -G docker jenkins
-sudo service jenkins restart
 
-# install go
-wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-go version
+# run gitlab_runner in docker
+docker run -ti --rm --name gitlab-runner \
+     -v /srv/gitlab-runner/config:/etc/gitlab-runner \
+     -v /var/run/docker.sock:/var/run/docker.sock \
+     gitlab/gitlab-runner:latest register
 
-# goto jenkins 127.0.0.1:8080 and install just git plugin, create freestyle project with shell steps and repo lynk
-/usr/local/go/bin/go test .
-/usr/bin/docker build .
+url 172.17.0.1 # ip from docker subnet for using local and in docker
+token from project
+docker shell
+go:1.17 image
 
-# run build
+cd /srv/gitlab-runner/config
+change config.toml with adding other volumes
+and add actual host ip # if gitlab and gitlab runner on one machine and gitlab runner in docker - host ip in docker net
+
+---
+check_interval = 0
+shutdown_timeout = 0
+
+[session_server]
+  session_timeout = 1800
+
+[[runners]]
+  name = "runner-doc-1"
+  url = "http://172.17.0.1/"
+  id = 1
+  token = "nia-m226x1E4YtAcBg9c"
+  token_obtained_at = 2024-08-18T13:26:07Z
+  token_expires_at = 0001-01-01T00:00:00Z
+  executor = "docker"
+  [runners.custom_build_dir]
+  [runners.cache]
+    MaxUploadedArchiveSize = 0
+    [runners.cache.s3]
+    [runners.cache.gcs]
+    [runners.cache.azure]
+  [runners.docker]
+    tls_verify = false
+    image = "go:1.17"
+    privileged = false
+    disable_entrypoint_overwrite = false
+    oom_kill_disable = false
+    disable_cache = false
+    volumes = ["/cache", "/var/run/docker.sock:/var/run/docker.sock"]
+    shm_size = 0
+    network_mtu = 0
+---
+
+# start runner
+docker run -d --name gitlab-runner --restart always \
+     -v /srv/gitlab-runner/config:/etc/gitlab-runner \
+     -v /var/run/docker.sock:/var/run/docker.sock \
+     gitlab/gitlab-runner:latest
 ```
 
-![Настройки проекта](img/my_freestyle_project_settings.png)
-
-![Успешная сборка](img/my_freestyle_project_successful_build.png)
+![Настройки проекта](img/gitlab_project_with_runner_settings.png)
 
 ## Задание 2
 
 **Что нужно сделать:**
 
-1. Создайте новый проект pipeline.
-2. Перепишите сборку из задания 1 на declarative в виде кода.
+1. Запушьте [репозиторий](https://github.com/netology-code/sdvps-materials/tree/main/gitlab) на GitLab, изменив origin. Это изучалось на занятии по Git.
+2. Создайте .gitlab-ci.yml, описав в нём все необходимые, на ваш взгляд, этапы.
 
-В качестве ответа пришлите скриншоты с настройками проекта и результатами выполнения сборки.
+В качестве ответа в шаблон с решением добавьте: 
+   
+ * файл gitlab-ci.yml для своего проекта или вставьте код в соответствующее поле в шаблоне; 
+ * скриншоты с успешно собранными сборками.
 
 ## Решение 2
 
 ```
-# goto jenkins 127.0.0.1:8080 and install pipeline plugin, create pipeline project with shell steps and repo lynk
-pipeline {
-  agent any
-  stages {
-    stage('Git') {
-      steps {
-          git branch: 'main',
-              url: 'https://github.com/Spardoks/sdvps-materials.git'
-      }
-    }
-    stage('Build') {
-      steps {
-        sh '/usr/local/go/bin/go test .'
-        sh '/usr/bin/docker build .'
-      }
-    }
-  }
-}
-```
+# create local repo from remote github
+git clone https://github.com/netology-code/sdvps-materials.git
+cd sdvps-materials
+git remote rename origin old-origin
+git remote add origin http://172.17.0.1/root/my_project.git
+git push -u origin --all
+git push -u origin --tags
 
-![Настройки проекта](img/my_pipeline_project_settings.png)
+root
+root_initial_password
 
-![Успешная сборка](img/my_pipeline_project_successful_build.png)
 
-## Задание 3
+# create pipeline
+nano .gitlab-ci.yml
+---
+stages:
+  - test
+  - build
 
-**Что нужно сделать:**
+test:
+  stage: test
+  image: golang:1.17
+  script: 
+   - go test .
 
-1. Установите на машину Nexus.
-2. Создайте raw-hosted репозиторий.
-3. Измените pipeline так, чтобы вместо Docker-образа собирался бинарный go-файл. Команду можно скопировать из Dockerfile.
-4. Загрузите файл в репозиторий с помощью jenkins.
+build:
+  stage: build
+  image: docker:latest
+  script:
+   - docker build .
+---
 
-В качестве ответа пришлите скриншоты с настройками проекта и результатами выполнения сборки.
+git config --global user.email "root@root.com"
+git config --global user.name "root"
 
-## Решение 3
-
-```
-# install nexus from docker
-docker run -d -p 8081:8081 --name nexus -e INSTALL4J_ADD_VM_PARAMS="-Xms273m -Xmx273m -XX:MaxDirectMemorySize=273m" sonatype/nexus3:3.2.0
-# latest docker version has no raw-hosted that's why 3.2.0
-# standard admin password there is admin123
-
-# goto 127.0.0.1:8081, login with admin and create raw-hosted repo
-
-# create new pipe in jenkins
-pipeline {
-  agent any
-  stages {
-    stage('Git') {
-      steps {
-          git branch: 'main',
-              url: 'https://github.com/Spardoks/sdvps-materials.git'
-      }
-    }
-    stage('Build') {
-      steps {
-        sh 'CGO_ENABLED=0 GOOS=linux /usr/local/go/bin/go build -a -installsuffix nocgo -o app .'
-        sh 'curl -u admin:admin123 http://127.0.0.1:8081/repository/my_repo/ --upload-file app -v'
-      }
-    }
-  }
-}
-```
-
-![Настройки проекта](img/my_pipeline_nexus_project_settings.png)
-
-![Успешная сборка](img/my_pipeline_nexus_successful_build.png)
-
-## Задание 4*
-
-Придумайте способ версионировать приложение, чтобы каждый следующий запуск сборки присваивал имени файла новую версию. Таким образом, в репозитории Nexus будет храниться история релизов.
-
-Подсказка: используйте переменную BUILD_NUMBER.
-
-В качестве ответа пришлите скриншоты с настройками проекта и результатами выполнения сборки.
-
-## Решение 4*
+git add .gitlab-ci.yml
+git commit -m "Add pipeline"
+git push origin main
 
 ```
-pipeline {
-  agent any
-  stages {
-    stage('Git') {
-      steps {
-          git branch: 'main',
-              url: 'https://github.com/Spardoks/sdvps-materials.git'
-      }
-    }
-    stage('Build') {
-      steps {
-        sh 'CGO_ENABLED=0 GOOS=linux /usr/local/go/bin/go build -a -installsuffix nocgo -o app .'
-        sh 'curl -u admin:admin123 http://127.0.0.1:8081/repository/my_repo/app_v_$BUILD_NUMBER --upload-file app -v'
-      }
-    }
-  }
-}
+
+![Удачные тесты](img/gitlab_project_with_runner_succesfull_test.png)
+
+![Удачная сборка](img/gitlab_project_with_runner_succesfull_build.png)
+
+## Задание 3*
+
+Измените CI так, чтобы:
+
+ - этап сборки запускался сразу, не дожидаясь результатов тестов;
+ - тесты запускались только при изменении файлов с расширением *.go.
+
+В качестве ответа добавьте в шаблон с решением файл gitlab-ci.yml своего проекта или вставьте код в соответсвующее поле в шаблоне.
+
+## Решение 3*
+
+```
+# change pipeline
+nano .gitlab-ci.yml
+---
+stages:
+  - ci
+
+test:
+  stage: ci
+  rules:
+    - changes:
+      - '*.go'
+      when: always
+  image: golang:1.17
+  script: 
+   - go test .
+
+build:
+  stage: ci
+  image: docker:latest
+  script:
+   - docker build .
+---
+
 ```
 
-![Успешная сборка](img/my_pipeline_nexus_version_successful_build.png)
+![Удачная сборка](img/gitlab_project_with_runner_succesfull_parallel_tasks.png)
